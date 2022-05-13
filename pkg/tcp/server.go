@@ -48,6 +48,10 @@ func DefaultOnConnected(inSiteMessageBus <-chan *Packet) (outSiteMessageBus <-ch
 	return nil
 }
 
+func (s *Server) SetSplitter(splitter SplitterFunc) {
+	s.splitter = splitter
+}
+
 func (s *Server) SetOnConnected(onConnected OnConnectedFunc) {
 	s.onConnected = onConnected
 }
