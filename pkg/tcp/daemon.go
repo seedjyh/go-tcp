@@ -2,7 +2,6 @@ package tcp
 
 import (
 	"context"
-	"fmt"
 	"golang.org/x/sync/errgroup"
 	"net"
 )
@@ -39,10 +38,7 @@ func (d *Daemon) KeepWorking(ctx context.Context) error {
 	// 2. 创建handler
 	h := func(c Context) error {
 		m := c.Received()
-		fmt.Println("daemon.Handler", m.data[0])
-		fmt.Println("pushing inSiteMessageBus", inSiteMessageBus)
 		inSiteMessageBus <- m
-		fmt.Println("pushed inSiteMessageBus")
 		return nil
 	}
 	if d.middleware != nil {

@@ -71,7 +71,7 @@ func (s *Server) Start(address string) error {
 
 	for conn := range connChan {
 		conn := conn
-		fmt.Println(conn)
+		fmt.Println("tcp.server.Start took a connection from listener:", conn)
 		wg.Add(1)
 		go func() {
 			wg.Done()
