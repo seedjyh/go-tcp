@@ -5,6 +5,10 @@ type Packet struct {
 	data []byte
 }
 
+func (p *Packet) Bytes() []byte {
+	return p.data
+}
+
 func NewPacket(buf []byte) *Packet {
 	l := len(buf)
 	data := make([]byte, l)
