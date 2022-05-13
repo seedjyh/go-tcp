@@ -56,6 +56,12 @@ func (s *Server) SetOnConnected(onConnected OnConnectedFunc) {
 	s.onConnected = onConnected
 }
 
+func (s *Server) Use(middlewares ...MiddlewareFunc) {
+	for _, m := range middlewares {
+		s.middleware = append(s.middleware, m)
+	}
+}
+
 // Start 是一个阻塞式的服务。会一直工作到调用 Stop 为止。
 // 收到一个连接，就会启动一个协程去处理该连接。
 func (s *Server) Start(address string) error {
