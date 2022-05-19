@@ -4,10 +4,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/seedjyh/go-tcp/pkg/tcp"
 	"golang.org/x/sync/errgroup"
 	"sort"
 	"strings"
+	"time"
 )
 
 // 每5个字节一个包
@@ -149,9 +151,30 @@ func main() {
 		})
 		return nil
 	})
+	s.SetDefaultHandler(func(c tcp.Context) error {
+		fmt.Println("unknown message:", string(c.Received().Bytes()))
+		return nil
+	})
+
+	echoChannel := make(chan tcp.Message)
+	s.SetOnConnected(func() (outSiteMessageBus <-chan tcp.Message) {
+		return echoChannel
+	})
 
 	// start
 	eg.Go(func() error { return s.Start(fmt.Sprintf("0.0.0.0:%d", port)) })
+	eg.Go(func() error {
+		timer := time.NewTimer(time.Second)
+		for {
+			select {
+			case <-ctx.Done():
+				return errors.New("context is done")
+			case <-timer.C:
+				echoChannel <- tcp.NewPacket([]byte(time.Now().String()))
+				timer.Reset(time.Second)
+			}
+		}
+	})
 
 	// wait
 	<-ctx.Done()

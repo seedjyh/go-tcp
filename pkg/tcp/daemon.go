@@ -12,15 +12,15 @@ import (
 type Daemon struct {
 	conn        net.Conn
 	splitter    SplitterFunc
-	middleware  []MiddlewareFunc
+	handler     HandlerFunc
 	onConnected OnConnectedFunc
 }
 
-func NewDaemon(conn net.Conn, splitter SplitterFunc, middleware []MiddlewareFunc, onConnected OnConnectedFunc) *Daemon {
+func NewDaemon(conn net.Conn, splitter SplitterFunc, handler HandlerFunc, onConnected OnConnectedFunc) *Daemon {
 	return &Daemon{
 		conn:        conn,
 		splitter:    splitter,
-		middleware:  middleware,
+		handler:     handler,
 		onConnected: onConnected,
 	}
 }
@@ -33,27 +33,15 @@ func (d *Daemon) KeepWorking(ctx context.Context) error {
 	defer close(receivedMessageChannel)
 	sendingMessageChannel := make(chan Message)
 	defer close(sendingMessageChannel)
-	inSiteMessageBus := make(chan Message)
-	outSiteMessageBus := d.onConnected(inSiteMessageBus)
-	// 2. 创建handler
-	h := func(c Context) error {
-		m := c.Received()
-		inSiteMessageBus <- m
-		return nil
-	}
-	if d.middleware != nil {
-		for i := len(d.middleware) - 1; i >= 0; i-- {
-			h = d.middleware[i](h)
-		}
-	}
-	// 3. 创建4个goroutine
+	outSiteMessageBus := d.onConnected()
+	// 2. 创建4个goroutine
 	ctx, cancel := context.WithCancel(ctx)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error { return NewReceiver(d.conn, d.splitter, receivedMessageChannel).KeepWorking(ctx) })
 	eg.Go(func() error { return NewSender(d.conn, sendingMessageChannel).KeepWorking(ctx) })
 	eg.Go(func() error { return NewForwarder(outSiteMessageBus, sendingMessageChannel).KeepWorking(ctx) })
 	eg.Go(func() error {
-		return NewProcessor(receivedMessageChannel, sendingMessageChannel, h).KeepWorking(ctx)
+		return NewProcessor(receivedMessageChannel, sendingMessageChannel, d.handler).KeepWorking(ctx)
 	})
 	<-ctx.Done()
 	cancel()

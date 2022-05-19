@@ -3,17 +3,18 @@ package tcp
 import (
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"sync"
 )
 
 type (
 	Server struct {
-		listener    *Listener
-		splitter    SplitterFunc
-		middleware  []MiddlewareFunc // 处理函数包裹器（中间件）
-		handler     HandlerFunc      // 核心处理函数
-		onConnected OnConnectedFunc  // 新连接建立时的回调
-		routers     []RouterPair
+		listener       *Listener
+		splitter       SplitterFunc
+		middleware     []MiddlewareFunc // 处理函数包裹器（中间件）
+		onConnected    OnConnectedFunc  // 新连接建立时的回调
+		routers        []RouterPair
+		defaultHandler HandlerFunc // 默认处理函数（没有被任何router访问的）
 	}
 
 	IdentifierFunc func(m Message) bool
@@ -29,31 +30,35 @@ type (
 	// MiddlewareFunc 是 Packet 处理函数中间件的标准格式
 	MiddlewareFunc func(next HandlerFunc) HandlerFunc
 
-	// OnConnectedFunc 是新连接建立时的回调函数。没有被中间件过滤的消息会送到 inSiteMessageBus，要发送的消息写入 outSiteMessageBus
-	OnConnectedFunc func(inSiteMessageBus <-chan Message) (outSiteMessageBus <-chan Message)
+	// OnConnectedFunc 是新连接建立时的回调函数。要发送的消息写入 outSiteMessageBus。
+	OnConnectedFunc func() (outSiteMessageBus <-chan Message)
 )
 
 // NewServer 传入参数除了端口 port ，还有消息解析器 parser 、消息处理器 processor 。
 // 在 processor.ProcessMessage 没有返回之前，并不会调用第二个ProcessMessage。
 func NewServer() *Server {
 	s := &Server{
-		listener:    nil,
-		splitter:    nil,
-		middleware:  nil,
-		onConnected: nil,
+		listener:       nil,
+		splitter:       nil,
+		middleware:     nil,
+		onConnected:    nil,
+		routers:        nil,
+		defaultHandler: nil,
 	}
 	s.splitter = DefaultSplitter
 	s.onConnected = DefaultOnConnected
+	s.defaultHandler = DefaultHandler
 	return s
 }
 
-// DefaultOnConnected 所有入站消息都被获取并丢弃；没有出站消息。
-func DefaultOnConnected(inSiteMessageBus <-chan Message) (outSiteMessageBus <-chan Message) {
-	go func() {
-		for _ = range inSiteMessageBus {
-		}
-	}()
+// DefaultOnConnected 没有出站消息。
+func DefaultOnConnected() (outSiteMessageBus <-chan Message) {
 	return nil
+}
+
+// DefaultHandler 默认处理函数
+func DefaultHandler(c Context) error {
+	return errors.New("unknown message")
 }
 
 func (s *Server) SetSplitter(splitter SplitterFunc) {
@@ -62,6 +67,10 @@ func (s *Server) SetSplitter(splitter SplitterFunc) {
 
 func (s *Server) SetOnConnected(onConnected OnConnectedFunc) {
 	s.onConnected = onConnected
+}
+
+func (s *Server) SetDefaultHandler(handler HandlerFunc) {
+	s.defaultHandler = handler
 }
 
 func (s *Server) Use(middlewares ...MiddlewareFunc) {
@@ -93,10 +102,26 @@ func (s *Server) Start(address string) error {
 	for conn := range connChan {
 		conn := conn
 		fmt.Println("tcp.server.Start took a connection from listener:", conn)
+
+		h := func(c Context) error {
+			m := c.Received()
+			for _, r := range s.routers {
+				if r.identifier(m) {
+					return r.handler(c)
+				}
+			}
+			return s.defaultHandler(c)
+		}
+		for _, m := range s.middleware {
+			h = m(h)
+		}
+
+		daemon := NewDaemon(conn, s.splitter, h, s.onConnected)
+
 		wg.Add(1)
 		go func() {
 			wg.Done()
-			if err := NewDaemon(conn, s.splitter, s.middleware, s.onConnected).KeepWorking(ctx); err != nil {
+			if err := daemon.KeepWorking(ctx); err != nil {
 				fmt.Println("conn processor exit, error=", err)
 			} else {
 				fmt.Println("conn processor exit ok")
