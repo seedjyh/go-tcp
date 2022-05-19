@@ -31,11 +31,12 @@ func (r *Receiver) KeepWorking(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return errors.New("context is done")
-		case resultChan := <-r.receiveOneData():
-			if resultChan.err != nil {
-				return resultChan.err
-			}
-			buf.Write(resultChan.data)
+		default:
+		}
+		if data, err := r.receiveOneData(); err != nil {
+			return err
+		} else {
+			buf.Write(data)
 			if message, messageByteLength, err := r.splitter(buf.Bytes()); err != nil {
 				if errors.Is(err, NoEnoughData) {
 					continue
@@ -54,25 +55,11 @@ func (r *Receiver) KeepWorking(ctx context.Context) error {
 	}
 }
 
-type receiveResult struct {
-	data []byte
-	err  error
-}
-
-func (r *Receiver) receiveOneData() <-chan *receiveResult {
-	ret := make(chan *receiveResult, 1)
-	defer close(ret)
+func (r *Receiver) receiveOneData() ([]byte, error) {
 	buf := make([]byte, 1024)
 	if n, err := r.conn.Read(buf); err != nil {
-		ret <- &receiveResult{
-			data: nil,
-			err:  err,
-		}
+		return nil, err
 	} else {
-		ret <- &receiveResult{
-			data: buf[:n],
-			err:  nil,
-		}
+		return buf[:n], nil
 	}
-	return ret
 }
