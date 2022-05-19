@@ -23,8 +23,8 @@ func mySplitter(buf []byte) (tcp.Message, int, error) {
 // middlewareResponseFiveZeroes 如果消息是"00000"则返回"11111"。
 func middlewareResponseFiveZeroes(next tcp.HandlerFunc) tcp.HandlerFunc {
 	return func(c tcp.Context) error {
-		p := c.Received()
-		if string(p.Bytes()) == "00000" {
+		m := c.Received().(*MyMessage)
+		if m.word == "00000" {
 			c.Send(tcp.NewPacket([]byte("11111")))
 			return nil
 		} else {
@@ -110,18 +110,25 @@ func decreaseString(raw string) string {
 }
 
 func main() {
+
+	// 这里创建了一个服务器。鉴定 port 端口，接受任何连接（可以用telnet连接）。
+	// 1. 所有连接共享每分钟一次的时间戳信息。连接越多，每个连接分到的消息越少；连接切断后，消息会集中到剩下的有效连接中。
+	// 2. 每个连接都可以发送字符，5个字符为一个包。
+	// 3. 如果是5个0的消息，会直接响应5个1。
+	// 3. 纯数字的包，会收到两个响应，分别是递增和递减。
+	// 4. 纯字母的包，会收到两个响应，分别是大写和小写。
+
+	// 指定端口
 	port := 11223
 	s := tcp.NewServer()
-	eg, ctx := errgroup.WithContext(context.Background())
 
-	// 分包规则：每5个字节一个包。
+	// 设置分包规则：每5个字节一个包。
 	s.SetSplitter(mySplitter)
-
-	// 过滤规则：如果消息是"00000"则返回"11111"。
-	s.Use(middlewareResponseFiveZeroes)
 
 	// 转换规则：将消息转换成内容包含「长度」和「string格式的内容」的两个成员的struct。
 	s.Use(middlewareUnpackToMessage)
+	// 设置过滤规则：如果消息是"00000"则返回"11111"。
+	s.Use(middlewareResponseFiveZeroes)
 
 	// 注册处理规则：
 	// 如果全是字母，发送两条响应，依次是全大写的和全小写的。
@@ -152,7 +159,7 @@ func main() {
 		return nil
 	})
 	s.SetDefaultHandler(func(c tcp.Context) error {
-		fmt.Println("unknown message:", string(c.Received().Bytes()))
+		c.Send(tcp.NewPacket([]byte("unknown message")))
 		return nil
 	})
 
@@ -162,6 +169,7 @@ func main() {
 	})
 
 	// start
+	eg, ctx := errgroup.WithContext(context.Background())
 	eg.Go(func() error { return s.Start(fmt.Sprintf("0.0.0.0:%d", port)) })
 	eg.Go(func() error {
 		timer := time.NewTimer(time.Second)

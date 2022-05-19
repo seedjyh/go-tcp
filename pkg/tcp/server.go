@@ -8,6 +8,23 @@ import (
 )
 
 type (
+	// Server 会监听连接，并对于每个连接单独处理。
+	// 每个连接收到的字节流的处理顺序如下：
+	// 1. 根据 SplitterFunc 拆分成 Packet。
+	// 2. 通过一系列 MiddlewareFunc。用 Use 注册自定义 MiddlewareFunc，先注册的先执行。
+	// 3. 通过一系列 RouterPair。每个 RouterPair 由一个 IdentifierFunc 和一个 HandlerFunc 组成。用 Add 注册自定义 RouterPair ，先注册的先检查。一个匹配后，不再执行后续的 RouterPair。
+	// 4. 如果所有 RouterPair 的 IdentifierFunc 都不匹配，则会调用默认的 HandlerFunc。用 SetDefaultHandler 覆盖默认值。
+	// 此外，每个连接创建的时候，会回调一个 OnConnectedFunc，用于配置往该连接发送消息的消息 channel。用 SetOnConnected 覆盖默认值。
+	//
+	// 一般的使用顺序如下：
+	// 1. s := NewServer()
+	// 2. （可选）用 SetSplitter 覆盖默认的分包器。
+	// 3. （可选）用 Use 注册中间件，用于解析、重写或处理消息。
+	// 4. （可选）用 Add 注册路由规则，用于预先配置特定消息的处理函数。
+	// 5. （可选）用 SetDefaultHandler 注册默认消息处理函数。
+	// 6. （可选）用 SetOnConnected 注册异步发送消息的队列。队列里的消息会均匀分散到已有的连接。
+	// 7. Start(address) 将会阻塞。
+	// 8. 在要退出时，调用 Stop() 通知上述阻塞的 Start 函数退出。
 	Server struct {
 		listener       *Listener
 		splitter       SplitterFunc
@@ -34,8 +51,6 @@ type (
 	OnConnectedFunc func() (outSiteMessageBus <-chan Message)
 )
 
-// NewServer 传入参数除了端口 port ，还有消息解析器 parser 、消息处理器 processor 。
-// 在 processor.ProcessMessage 没有返回之前，并不会调用第二个ProcessMessage。
 func NewServer() *Server {
 	s := &Server{
 		listener:       nil,
@@ -112,8 +127,8 @@ func (s *Server) Start(address string) error {
 			}
 			return s.defaultHandler(c)
 		}
-		for _, m := range s.middleware {
-			h = m(h)
+		for i := len(s.middleware) - 1; i >= 0; i-- {
+			h = s.middleware[i](h)
 		}
 
 		daemon := NewDaemon(conn, s.splitter, h, s.onConnected)

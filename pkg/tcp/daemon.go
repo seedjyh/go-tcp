@@ -33,13 +33,13 @@ func (d *Daemon) KeepWorking(ctx context.Context) error {
 	defer close(receivedMessageChannel)
 	sendingMessageChannel := make(chan Message)
 	defer close(sendingMessageChannel)
-	outSiteMessageBus := d.onConnected()
+	forwardingMessageChannel := d.onConnected()
 	// 2. 创建4个goroutine
 	ctx, cancel := context.WithCancel(ctx)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error { return NewReceiver(d.conn, d.splitter, receivedMessageChannel).KeepWorking(ctx) })
 	eg.Go(func() error { return NewSender(d.conn, sendingMessageChannel).KeepWorking(ctx) })
-	eg.Go(func() error { return NewForwarder(outSiteMessageBus, sendingMessageChannel).KeepWorking(ctx) })
+	eg.Go(func() error { return NewForwarder(forwardingMessageChannel, sendingMessageChannel).KeepWorking(ctx) })
 	eg.Go(func() error {
 		return NewProcessor(receivedMessageChannel, sendingMessageChannel, d.handler).KeepWorking(ctx)
 	})
