@@ -14,10 +14,10 @@ import (
 type Receiver struct {
 	conn                   net.Conn
 	splitter               SplitterFunc
-	receivedMessageChannel chan<- *Packet
+	receivedMessageChannel chan<- Message
 }
 
-func NewReceiver(conn net.Conn, splitter SplitterFunc, receivedMessageChannel chan<- *Packet) *Receiver {
+func NewReceiver(conn net.Conn, splitter SplitterFunc, receivedMessageChannel chan<- Message) *Receiver {
 	return &Receiver{
 		conn:                   conn,
 		splitter:               splitter,

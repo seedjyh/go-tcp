@@ -29,11 +29,11 @@ func NewDaemon(conn net.Conn, splitter SplitterFunc, middleware []MiddlewareFunc
 // 不会关闭任何外部传入的资源（如 net.Conn, inSiteMessageBuf, outSiteMessageBus 就不会关闭)
 func (d *Daemon) KeepWorking(ctx context.Context) error {
 	// 1. 创建两个channel
-	receivedMessageChannel := make(chan *Packet)
+	receivedMessageChannel := make(chan Message)
 	defer close(receivedMessageChannel)
-	sendingMessageChannel := make(chan *Packet)
+	sendingMessageChannel := make(chan Message)
 	defer close(sendingMessageChannel)
-	inSiteMessageBus := make(chan *Packet)
+	inSiteMessageBus := make(chan Message)
 	outSiteMessageBus := d.onConnected(inSiteMessageBus)
 	// 2. 创建handler
 	h := func(c Context) error {

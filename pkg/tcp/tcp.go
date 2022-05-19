@@ -7,8 +7,8 @@ package tcp
 //
 //func TestServer_Start(t *testing.T) {
 //	s := NewServer()
-//	s.SetOnConnected(func(inSite <-chan *Packet) <-chan *Packet {
-//		outSite := make(chan *Packet)
+//	s.SetOnConnected(func(inSite <-chan Message) <-chan Message {
+//		outSite := make(chan Message)
 //		go func() {
 //			for m := range inSite {
 //				outSite <- m

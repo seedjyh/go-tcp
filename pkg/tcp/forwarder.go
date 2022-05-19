@@ -6,11 +6,11 @@ import (
 )
 
 type Forwarder struct {
-	outSiteMessageBus     <-chan *Packet
-	sendingMessageChannel chan<- *Packet
+	outSiteMessageBus     <-chan Message
+	sendingMessageChannel chan<- Message
 }
 
-func NewForwarder(outSiteMessageBus <-chan *Packet, sendingMessageChannel chan<- *Packet) *Forwarder {
+func NewForwarder(outSiteMessageBus <-chan Message, sendingMessageChannel chan<- Message) *Forwarder {
 	return &Forwarder{
 		outSiteMessageBus:     outSiteMessageBus,
 		sendingMessageChannel: sendingMessageChannel,

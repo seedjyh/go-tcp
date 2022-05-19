@@ -13,10 +13,10 @@ import (
 // 不负责关闭 channel
 type Sender struct {
 	conn                  net.Conn
-	sendingMessageChannel <-chan *Packet
+	sendingMessageChannel <-chan Message
 }
 
-func NewSender(conn net.Conn, sendingMessageChannel <-chan *Packet) *Sender {
+func NewSender(conn net.Conn, sendingMessageChannel <-chan Message) *Sender {
 	return &Sender{
 		conn:                  conn,
 		sendingMessageChannel: sendingMessageChannel,
@@ -44,9 +44,9 @@ func (s *Sender) KeepWorking(ctx context.Context) error {
 // send 会阻塞并试图发送 m 到连接。
 // 发送成功、出错都会返回。
 // 如果发送出错，可能只发送了半条消息。所以如果返回值不是nil，应该立刻关闭连接，避免后续数据出错。
-func (s *Sender) send(m *Packet) error {
+func (s *Sender) send(m Message) error {
 	const maxWait = time.Second * 1 // 最多 maxWait 要发完
-	buf := m.data
+	buf := m.Bytes()
 	if err := s.conn.SetWriteDeadline(time.Now().Add(maxWait)); err != nil {
 		return err
 	}

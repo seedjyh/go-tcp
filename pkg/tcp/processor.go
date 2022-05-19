@@ -8,14 +8,14 @@ import (
 
 // Processor 是一个由中间件堆砌起来的消息处理栈。
 type Processor struct {
-	receivedMessageChannel <-chan *Packet
-	sendingMessageChannel  chan<- *Packet
+	receivedMessageChannel <-chan Message
+	sendingMessageChannel  chan<- Message
 	handler                HandlerFunc
 }
 
 func NewProcessor(
-	receivedMessageChannel <-chan *Packet,
-	sendingMessageChannel chan<- *Packet,
+	receivedMessageChannel <-chan Message,
+	sendingMessageChannel chan<- Message,
 	handler HandlerFunc,
 ) *Processor {
 	return &Processor{

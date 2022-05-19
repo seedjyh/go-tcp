@@ -13,16 +13,24 @@ type (
 		middleware  []MiddlewareFunc // 处理函数包裹器（中间件）
 		handler     HandlerFunc      // 核心处理函数
 		onConnected OnConnectedFunc  // 新连接建立时的回调
+		routers     []RouterPair
 	}
+
+	IdentifierFunc func(m Message) bool
 
 	// HandlerFunc 是 Packet 处理函数的标准格式。
 	HandlerFunc func(c Context) error
+
+	RouterPair struct {
+		identifier IdentifierFunc
+		handler    HandlerFunc
+	}
 
 	// MiddlewareFunc 是 Packet 处理函数中间件的标准格式
 	MiddlewareFunc func(next HandlerFunc) HandlerFunc
 
 	// OnConnectedFunc 是新连接建立时的回调函数。没有被中间件过滤的消息会送到 inSiteMessageBus，要发送的消息写入 outSiteMessageBus
-	OnConnectedFunc func(inSiteMessageBus <-chan *Packet) (outSiteMessageBus <-chan *Packet)
+	OnConnectedFunc func(inSiteMessageBus <-chan Message) (outSiteMessageBus <-chan Message)
 )
 
 // NewServer 传入参数除了端口 port ，还有消息解析器 parser 、消息处理器 processor 。
@@ -40,7 +48,7 @@ func NewServer() *Server {
 }
 
 // DefaultOnConnected 所有入站消息都被获取并丢弃；没有出站消息。
-func DefaultOnConnected(inSiteMessageBus <-chan *Packet) (outSiteMessageBus <-chan *Packet) {
+func DefaultOnConnected(inSiteMessageBus <-chan Message) (outSiteMessageBus <-chan Message) {
 	go func() {
 		for _ = range inSiteMessageBus {
 		}
@@ -60,6 +68,13 @@ func (s *Server) Use(middlewares ...MiddlewareFunc) {
 	for _, m := range middlewares {
 		s.middleware = append(s.middleware, m)
 	}
+}
+
+func (s *Server) Add(identifier IdentifierFunc, handler HandlerFunc) {
+	s.routers = append(s.routers, RouterPair{
+		identifier: identifier,
+		handler:    handler,
+	})
 }
 
 // Start 是一个阻塞式的服务。会一直工作到调用 Stop 为止。

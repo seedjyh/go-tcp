@@ -15,15 +15,15 @@ const port = 11240
 
 func TestServer_Start(t *testing.T) {
 	s := NewServer()
-	s.SetSplitter(func(buf []byte) (*Packet, int, error) {
+	s.SetSplitter(func(buf []byte) (Message, int, error) {
 		if len(buf) < fixedLength {
 			return nil, 0, NoEnoughData
 		} else {
 			return NewPacket(buf[:fixedLength]), fixedLength, nil
 		}
 	})
-	s.SetOnConnected(func(inSiteMessageBus <-chan *Packet) (outSiteMessageBus <-chan *Packet) {
-		out := make(chan *Packet)
+	s.SetOnConnected(func(inSiteMessageBus <-chan Message) (outSiteMessageBus <-chan Message) {
+		out := make(chan Message)
 		go func() {
 			for m := range inSiteMessageBus {
 				assert.Equal(t, requestText, string(m.Bytes()))
@@ -68,14 +68,14 @@ func TestServer_Start(t *testing.T) {
 
 func TestServer_Use(t *testing.T) {
 	s := NewServer()
-	s.SetSplitter(func(buf []byte) (*Packet, int, error) {
+	s.SetSplitter(func(buf []byte) (Message, int, error) {
 		if len(buf) < fixedLength {
 			return nil, 0, NoEnoughData
 		} else {
 			return NewPacket(buf[:fixedLength]), fixedLength, nil
 		}
 	})
-	s.SetOnConnected(func(inSiteMessageBus <-chan *Packet) (outSiteMessageBus <-chan *Packet) {
+	s.SetOnConnected(func(inSiteMessageBus <-chan Message) (outSiteMessageBus <-chan Message) {
 		go func() {
 			for _ = range inSiteMessageBus {
 				assert.Fail(t, "should not access here")
