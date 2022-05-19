@@ -2,7 +2,6 @@ package tcp
 
 import (
 	"context"
-	"fmt"
 	"github.com/pkg/errors"
 )
 
@@ -39,7 +38,7 @@ func (p *Processor) KeepWorking(ctx context.Context) error {
 				sendingMessageChannel: p.sendingMessageChannel,
 			}
 			if err := p.handler(c); err != nil {
-				fmt.Println("handle failed", err)
+				// fmt.Println("handle failed", err)
 			}
 		}
 	}

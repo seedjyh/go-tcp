@@ -1,7 +1,6 @@
 package tcp
 
 import (
-	"fmt"
 	"net"
 )
 
@@ -33,8 +32,8 @@ func (l *Listener) Start(address string) (<-chan net.Conn, error) {
 	connections := make(chan net.Conn)
 	go func() {
 		defer close(connections)
-		fmt.Println("tcp.listener.proc start!")
-		defer fmt.Println("tcp.listener.proc exit!")
+		//fmt.Println("tcp.listener.proc start!")
+		//defer fmt.Println("tcp.listener.proc exit!")
 		for {
 			if conn, err := l.listener.Accept(); err != nil {
 				l.err = err

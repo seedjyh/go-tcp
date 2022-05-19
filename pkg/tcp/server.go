@@ -2,7 +2,6 @@ package tcp
 
 import (
 	"context"
-	"fmt"
 	"github.com/pkg/errors"
 	"sync"
 )
@@ -116,7 +115,7 @@ func (s *Server) Start(address string) error {
 
 	for conn := range connChan {
 		conn := conn
-		fmt.Println("tcp.server.Start took a connection from listener:", conn)
+		//fmt.Println("tcp.server.Start took a connection from listener:", conn)
 
 		h := func(c Context) error {
 			m := c.Received()
@@ -137,9 +136,9 @@ func (s *Server) Start(address string) error {
 		go func() {
 			wg.Done()
 			if err := daemon.KeepWorking(ctx); err != nil {
-				fmt.Println("conn processor exit, error=", err)
+				//fmt.Println("conn processor exit, error=", err)
 			} else {
-				fmt.Println("conn processor exit ok")
+				//fmt.Println("conn processor exit ok")
 			}
 		}()
 	}
