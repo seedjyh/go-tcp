@@ -4,16 +4,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/pkg/errors"
 	"github.com/seedjyh/go-tcp/pkg/tcp"
 	"golang.org/x/sync/errgroup"
 	"sort"
 	"strings"
-	"time"
 )
 
 // 每5个字节一个包
-func mySplitter(buf []byte) (tcp.Message, int, error) {
+func mySplitter(buf []byte) (tcp.Serializable, int, error) {
 	if len(buf) < 5 {
 		return nil, 0, tcp.NoEnoughData
 	}
@@ -23,9 +21,9 @@ func mySplitter(buf []byte) (tcp.Message, int, error) {
 // middlewareResponseFiveZeroes 如果消息是"00000"则返回"11111"。
 func middlewareResponseFiveZeroes(next tcp.HandlerFunc) tcp.HandlerFunc {
 	return func(c tcp.Context) error {
-		m := c.Received().(*MyMessage)
-		if m.word == "00000" {
-			c.Send(tcp.NewPacket([]byte("11111")))
+		m := c.Received()
+		if m.Data.(*MyMessage).word == "00000" {
+			c.Send(tcp.NewEnvelope(m.ConnID, tcp.NewPacket([]byte("11111"))))
 			return nil
 		} else {
 			return next(c)
@@ -42,7 +40,7 @@ func (m *MyMessage) Bytes() []byte {
 	return []byte(m.word)
 }
 
-func isAllAlpha(m tcp.Message) bool {
+func isAllAlpha(m tcp.Serializable) bool {
 	mm := m.(*MyMessage)
 	for _, c := range mm.word {
 		if 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' {
@@ -54,7 +52,7 @@ func isAllAlpha(m tcp.Message) bool {
 	return true
 }
 
-func isAllDigit(m tcp.Message) bool {
+func isAllDigit(m tcp.Serializable) bool {
 	mm := m.(*MyMessage)
 	for _, c := range mm.word {
 		if '0' <= c && c <= '9' {
@@ -70,12 +68,12 @@ func isAllDigit(m tcp.Message) bool {
 func middlewareUnpackToMessage(next tcp.HandlerFunc) tcp.HandlerFunc {
 	return func(c tcp.Context) error {
 		rawMessage := c.Received()
-		rawPacket := rawMessage.(*tcp.Packet)
+		rawPacket := rawMessage.Data.(*tcp.Packet)
 		m := &MyMessage{
 			length: len(rawPacket.Bytes()),
 			word:   string(rawPacket.Bytes()),
 		}
-		c.SetReceived(m)
+		c.SetReceived(tcp.NewEnvelope(rawMessage.ConnID, m))
 		return next(c)
 	}
 }
@@ -135,54 +133,46 @@ func main() {
 	// 如果全是数字，发送两条响应，依次是递增和递减的。
 	// 其他情况，调用默认处理函数。
 	s.Add(isAllAlpha, func(c tcp.Context) error {
-		m := c.Received().(*MyMessage)
-		c.Send(&MyMessage{
-			length: m.length,
-			word:   strings.ToUpper(m.word),
-		})
-		c.Send(&MyMessage{
-			length: m.length,
-			word:   strings.ToLower(m.word),
-		})
+		m := c.Received()
+		c.Send(tcp.NewEnvelope(m.ConnID, &MyMessage{
+			length: m.Data.(*MyMessage).length,
+			word:   strings.ToUpper(m.Data.(*MyMessage).word),
+		}))
+		c.Send(tcp.NewEnvelope(m.ConnID, &MyMessage{
+			length: m.Data.(*MyMessage).length,
+			word:   strings.ToLower(m.Data.(*MyMessage).word),
+		}))
 		return nil
 	})
 	s.Add(isAllDigit, func(c tcp.Context) error {
-		m := c.Received().(*MyMessage)
-		c.Send(&MyMessage{
-			length: m.length,
-			word:   increaseString(m.word),
-		})
-		c.Send(&MyMessage{
-			length: m.length,
-			word:   decreaseString(m.word),
-		})
+		m := c.Received()
+		c.Send(tcp.NewEnvelope(m.ConnID, &MyMessage{
+			length: m.Data.(*MyMessage).length,
+			word:   increaseString(m.Data.(*MyMessage).word),
+		}))
+		c.Send(tcp.NewEnvelope(m.ConnID, &MyMessage{
+			length: m.Data.(*MyMessage).length,
+			word:   decreaseString(m.Data.(*MyMessage).word),
+		}))
 		return nil
 	})
 	s.SetDefaultHandler(func(c tcp.Context) error {
-		c.Send(tcp.NewPacket([]byte("unknown message")))
+		c.Send(tcp.NewEnvelope(c.Received().ConnID, tcp.NewPacket([]byte("unknown message"))))
 		return nil
 	})
 
-	echoChannel := make(chan tcp.Message)
-	s.SetOnConnected(func() (outSiteMessageBus <-chan tcp.Message) {
+	echoChannel := make(chan *tcp.Envelope)
+	s.SetOnConnected(func(connectionID tcp.ConnectionID) (outSiteMessageBus <-chan *tcp.Envelope) {
+		fmt.Println("connected, connID=", connectionID)
 		return echoChannel
+	})
+	s.SetOnDisconnected(func(connectionID tcp.ConnectionID) {
+		fmt.Println("disconnected, connID=", connectionID)
 	})
 
 	// start
 	eg, ctx := errgroup.WithContext(context.Background())
 	eg.Go(func() error { return s.Start(fmt.Sprintf("0.0.0.0:%d", port)) })
-	eg.Go(func() error {
-		timer := time.NewTimer(time.Second)
-		for {
-			select {
-			case <-ctx.Done():
-				return errors.New("context is done")
-			case <-timer.C:
-				echoChannel <- tcp.NewPacket([]byte(time.Now().String()))
-				timer.Reset(time.Second)
-			}
-		}
-	})
 
 	// wait
 	<-ctx.Done()

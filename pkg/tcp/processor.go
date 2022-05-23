@@ -7,14 +7,14 @@ import (
 
 // Processor 是一个由中间件堆砌起来的消息处理栈。
 type Processor struct {
-	receivedMessageChannel <-chan Message
-	sendingMessageChannel  chan<- Message
+	receivedMessageChannel <-chan *Envelope
+	sendingMessageChannel  chan<- *Envelope
 	handler                HandlerFunc
 }
 
 func NewProcessor(
-	receivedMessageChannel <-chan Message,
-	sendingMessageChannel chan<- Message,
+	receivedMessageChannel <-chan *Envelope,
+	sendingMessageChannel chan<- *Envelope,
 	handler HandlerFunc,
 ) *Processor {
 	return &Processor{

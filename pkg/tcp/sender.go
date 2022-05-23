@@ -3,7 +3,6 @@ package tcp
 import (
 	"context"
 	"github.com/pkg/errors"
-	"net"
 	"time"
 )
 
@@ -12,13 +11,13 @@ import (
 // 不负责关闭 net.Conn 。
 // 不负责关闭 channel
 type Sender struct {
-	conn                  net.Conn
-	sendingMessageChannel <-chan Message
+	connection            *Connection
+	sendingMessageChannel <-chan *Envelope
 }
 
-func NewSender(conn net.Conn, sendingMessageChannel <-chan Message) *Sender {
+func NewSender(connection *Connection, sendingMessageChannel <-chan *Envelope) *Sender {
 	return &Sender{
-		conn:                  conn,
+		connection:            connection,
 		sendingMessageChannel: sendingMessageChannel,
 	}
 }
@@ -44,14 +43,14 @@ func (s *Sender) KeepWorking(ctx context.Context) error {
 // send 会阻塞并试图发送 m 到连接。
 // 发送成功、出错都会返回。
 // 如果发送出错，可能只发送了半条消息。所以如果返回值不是nil，应该立刻关闭连接，避免后续数据出错。
-func (s *Sender) send(m Message) error {
+func (s *Sender) send(m *Envelope) error {
 	const maxWait = time.Second * 1 // 最多 maxWait 要发完
-	buf := m.Bytes()
-	if err := s.conn.SetWriteDeadline(time.Now().Add(maxWait)); err != nil {
+	buf := m.Data.Bytes()
+	if err := s.connection.conn.SetWriteDeadline(time.Now().Add(maxWait)); err != nil {
 		return err
 	}
 	for len(buf) > 0 {
-		if wc, err := s.conn.Write(buf); err != nil {
+		if wc, err := s.connection.conn.Write(buf); err != nil {
 			return err
 		} else {
 			buf = buf[wc:]

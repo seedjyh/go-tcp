@@ -4,22 +4,21 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"net"
 )
 
-// Receiver 负责从 net.Conn 收取字节流，拆分成 Message 后写入 channel 。
+// Receiver 负责从 net.Conn 收取字节流，拆分成 Envelope 后写入 channel 。
 // 异步工作，在网络出错时停止工作并关闭 channel 。
 // 不负责关闭 channel
 // 不负责关闭 net.Conn 。
 type Receiver struct {
-	conn                   net.Conn
+	connection             *Connection
 	splitter               SplitterFunc
-	receivedMessageChannel chan<- Message
+	receivedMessageChannel chan<- *Envelope
 }
 
-func NewReceiver(conn net.Conn, splitter SplitterFunc, receivedMessageChannel chan<- Message) *Receiver {
+func NewReceiver(connection *Connection, splitter SplitterFunc, receivedMessageChannel chan<- *Envelope) *Receiver {
 	return &Receiver{
-		conn:                   conn,
+		connection:             connection,
 		splitter:               splitter,
 		receivedMessageChannel: receivedMessageChannel,
 	}
@@ -44,7 +43,10 @@ func (r *Receiver) KeepWorking(ctx context.Context) error {
 					return err
 				}
 			} else {
-				r.receivedMessageChannel <- message
+				r.receivedMessageChannel <- &Envelope{
+					ConnID: r.connection.connectionID,
+					Data:   message,
+				}
 				if n, err := buf.Read(make([]byte, messageByteLength)); err != nil {
 					return err
 				} else if n != messageByteLength {
@@ -57,7 +59,7 @@ func (r *Receiver) KeepWorking(ctx context.Context) error {
 
 func (r *Receiver) receiveOneData() ([]byte, error) {
 	buf := make([]byte, 1024)
-	if n, err := r.conn.Read(buf); err != nil {
+	if n, err := r.connection.conn.Read(buf); err != nil {
 		return nil, err
 	} else {
 		return buf[:n], nil

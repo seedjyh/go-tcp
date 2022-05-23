@@ -4,13 +4,21 @@ import (
 	"net"
 )
 
-type Listener struct {
-	listener net.Listener
-	err      error
+type Connection struct {
+	connectionID ConnectionID
+	conn         net.Conn
 }
 
-func NewListener() *Listener {
-	return &Listener{}
+type Listener struct {
+	listener              net.Listener
+	err                   error
+	connectionIDGenerator Generator
+}
+
+func NewListener(connectionIDGenerator Generator) *Listener {
+	return &Listener{
+		connectionIDGenerator: connectionIDGenerator,
+	}
 }
 
 // Start 会立刻返回一个新的channel，表示监听过程中收到的连接。
@@ -23,13 +31,13 @@ func NewListener() *Listener {
 // 所以返回值需要多一个 err。
 //
 // 由于 listener 的Close保证一定会返回阻塞的Accept函数，所以不需要ctx控制生命周期了。
-func (l *Listener) Start(address string) (<-chan net.Conn, error) {
+func (l *Listener) Start(address string) (<-chan *Connection, error) {
 	if ln, err := net.Listen("tcp", address); err != nil {
 		return nil, err
 	} else {
 		l.listener = ln
 	}
-	connections := make(chan net.Conn)
+	connections := make(chan *Connection)
 	go func() {
 		defer close(connections)
 		//fmt.Println("tcp.listener.proc start!")
@@ -39,7 +47,10 @@ func (l *Listener) Start(address string) (<-chan net.Conn, error) {
 				l.err = err
 				break
 			} else {
-				connections <- conn
+				connections <- &Connection{
+					connectionID: ConnectionID(l.connectionIDGenerator.Next()),
+					conn:         conn,
+				}
 			}
 		}
 	}()
