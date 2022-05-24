@@ -1,4 +1,5 @@
-// 这里是使用go-tcp的一个服务器的例子。
+// 这里是使用go-tcp的一个异步服务器消息的例子。
+// 通过telnet发送到服务器的消息（换行符截断）会在一秒后返回"got:"+原始消息。
 package main
 
 import (
@@ -7,14 +8,17 @@ import (
 	"github.com/seedjyh/go-tcp/pkg/tcp"
 	"golang.org/x/sync/errgroup"
 	"sync"
+	"time"
 )
 
-// 每5个字节一个包
+// 遇到换行符就截断
 func mySplitter(buf []byte) (tcp.Serializable, int, error) {
-	if len(buf) < 5 {
-		return nil, 0, tcp.NoEnoughData
+	for i, c := range buf {
+		if c == '\n' {
+			return tcp.NewPacket(buf[:i+1]), i + 1, nil
+		}
 	}
-	return tcp.NewPacket(buf[:5]), 5, nil
+	return nil, 0, tcp.NoEnoughData
 }
 
 func main() {
@@ -57,6 +61,15 @@ func main() {
 	// start
 	eg, ctx := errgroup.WithContext(context.Background())
 	eg.Go(func() error { return s.Start(fmt.Sprintf("0.0.0.0:%d", port)) })
+
+	for m := range inSiteChannel {
+		m := m
+		time.AfterFunc(time.Second, func() {
+			//outSiteChannelMapMutex.RLocker()
+			//defer outSiteChannelMapMutex.RUnlock()
+			outSiteChannelMap[m.ConnID] <- tcp.NewEnvelope(m.ConnID, tcp.NewPacket([]byte("got:"+string(m.Data.Bytes()))))
+		})
+	}
 
 	// wait
 	<-ctx.Done()
