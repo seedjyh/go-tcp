@@ -21,14 +21,26 @@ func mySplitter(buf []byte) (tcp.Serializable, int, error) {
 	return nil, 0, tcp.NoEnoughData
 }
 
+type Envelope struct {
+	connID tcp.ConnectionID
+	data   tcp.Serializable
+}
+
+func NewEnvelope(connID tcp.ConnectionID, data tcp.Serializable) *Envelope {
+	return &Envelope{
+		connID: connID,
+		data:   data,
+	}
+}
+
 func main() {
 
 	// 这里创建了一个服务器。监听 port 端口，接受任何连接（可以用telnet连接）。
 
 	// 指定端口
 	port := 11223
-	inSiteChannel := make(chan *tcp.Envelope)                          // 收到的消息
-	outSiteChannelMap := make(map[tcp.ConnectionID]chan *tcp.Envelope) // 要发送的消息
+	inSiteChannel := make(chan *Envelope)                                 // 收到的消息
+	outSiteChannelMap := make(map[tcp.ConnectionID]chan tcp.Serializable) // 要发送的消息
 	outSiteChannelMapMutex := sync.RWMutex{}
 
 	s := tcp.NewServer()
@@ -36,13 +48,13 @@ func main() {
 	// 设置分包规则：每5个字节一个包。
 	s.SetSplitter(mySplitter)
 
-	s.SetOnConnected(func(connectionID tcp.ConnectionID) (outSiteMessageBus <-chan *tcp.Envelope) {
+	s.SetOnConnected(func(connectionID tcp.ConnectionID) (outSiteMessageBus <-chan tcp.Serializable) {
 		outSiteChannelMapMutex.Lock()
 		defer outSiteChannelMapMutex.Unlock()
 		if ch, ok := outSiteChannelMap[connectionID]; ok {
 			return ch
 		} else {
-			ch := make(chan *tcp.Envelope)
+			ch := make(chan tcp.Serializable)
 			outSiteChannelMap[connectionID] = ch
 			return ch
 		}
@@ -54,7 +66,7 @@ func main() {
 	})
 
 	s.SetDefaultHandler(func(c tcp.Context) error {
-		inSiteChannel <- c.Received()
+		inSiteChannel <- NewEnvelope(c.ConnectionID(), c.Received())
 		return nil
 	})
 
@@ -67,7 +79,7 @@ func main() {
 		time.AfterFunc(time.Second, func() {
 			//outSiteChannelMapMutex.RLocker()
 			//defer outSiteChannelMapMutex.RUnlock()
-			outSiteChannelMap[m.ConnID] <- tcp.NewEnvelope(m.ConnID, tcp.NewPacket([]byte("got:"+string(m.Data.Bytes()))))
+			outSiteChannelMap[m.connID] <- tcp.NewPacket([]byte("got:" + string(m.data.Bytes())))
 		})
 	}
 

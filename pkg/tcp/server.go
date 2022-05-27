@@ -50,7 +50,7 @@ type (
 	MiddlewareFunc func(next HandlerFunc) HandlerFunc
 
 	// OnConnectedFunc 是新连接建立时的回调函数。要发送的消息写入 outSiteMessageBus。
-	OnConnectedFunc func(connectionID ConnectionID) (outSiteMessageBus <-chan *Envelope)
+	OnConnectedFunc func(connectionID ConnectionID) (outSiteMessageBus <-chan Serializable)
 
 	// OnDisconnectedFunc 是连接中断时的回调函数。在该函数返回后，各种资源将会被清除。
 	OnDisconnectedFunc func(connectionID ConnectionID)
@@ -75,7 +75,7 @@ func NewServer() *Server {
 }
 
 // DefaultOnConnected 没有出站消息。
-func DefaultOnConnected(connectionID ConnectionID) (outSiteMessageBus <-chan *Envelope) {
+func DefaultOnConnected(connectionID ConnectionID) (outSiteMessageBus <-chan Serializable) {
 	return nil
 }
 
@@ -141,7 +141,7 @@ func (s *Server) Start(address string) error {
 		h := func(c Context) error {
 			m := c.Received()
 			for _, r := range s.routers {
-				if r.identifier(m.Data) {
+				if r.identifier(m) {
 					return r.handler(c)
 				}
 			}

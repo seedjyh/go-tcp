@@ -22,8 +22,8 @@ func mySplitter(buf []byte) (tcp.Serializable, int, error) {
 func middlewareResponseFiveZeroes(next tcp.HandlerFunc) tcp.HandlerFunc {
 	return func(c tcp.Context) error {
 		m := c.Received()
-		if m.Data.(*MyMessage).word == "00000" {
-			c.Send(tcp.NewEnvelope(m.ConnID, tcp.NewPacket([]byte("11111"))))
+		if m.(*MyMessage).word == "00000" {
+			c.Send(tcp.NewPacket([]byte("11111")))
 			return nil
 		} else {
 			return next(c)
@@ -68,12 +68,12 @@ func isAllDigit(m tcp.Serializable) bool {
 func middlewareUnpackToMessage(next tcp.HandlerFunc) tcp.HandlerFunc {
 	return func(c tcp.Context) error {
 		rawMessage := c.Received()
-		rawPacket := rawMessage.Data.(*tcp.Packet)
+		rawPacket := rawMessage.(*tcp.Packet)
 		m := &MyMessage{
 			length: len(rawPacket.Bytes()),
 			word:   string(rawPacket.Bytes()),
 		}
-		c.SetReceived(tcp.NewEnvelope(rawMessage.ConnID, m))
+		c.SetReceived(m)
 		return next(c)
 	}
 }
@@ -134,35 +134,35 @@ func main() {
 	// 其他情况，调用默认处理函数。
 	s.Add(isAllAlpha, func(c tcp.Context) error {
 		m := c.Received()
-		c.Send(tcp.NewEnvelope(m.ConnID, &MyMessage{
-			length: m.Data.(*MyMessage).length,
-			word:   strings.ToUpper(m.Data.(*MyMessage).word),
-		}))
-		c.Send(tcp.NewEnvelope(m.ConnID, &MyMessage{
-			length: m.Data.(*MyMessage).length,
-			word:   strings.ToLower(m.Data.(*MyMessage).word),
-		}))
+		c.Send(&MyMessage{
+			length: m.(*MyMessage).length,
+			word:   strings.ToUpper(m.(*MyMessage).word),
+		})
+		c.Send(&MyMessage{
+			length: m.(*MyMessage).length,
+			word:   strings.ToLower(m.(*MyMessage).word),
+		})
 		return nil
 	})
 	s.Add(isAllDigit, func(c tcp.Context) error {
 		m := c.Received()
-		c.Send(tcp.NewEnvelope(m.ConnID, &MyMessage{
-			length: m.Data.(*MyMessage).length,
-			word:   increaseString(m.Data.(*MyMessage).word),
-		}))
-		c.Send(tcp.NewEnvelope(m.ConnID, &MyMessage{
-			length: m.Data.(*MyMessage).length,
-			word:   decreaseString(m.Data.(*MyMessage).word),
-		}))
+		c.Send(&MyMessage{
+			length: m.(*MyMessage).length,
+			word:   increaseString(m.(*MyMessage).word),
+		})
+		c.Send(&MyMessage{
+			length: m.(*MyMessage).length,
+			word:   decreaseString(m.(*MyMessage).word),
+		})
 		return nil
 	})
 	s.SetDefaultHandler(func(c tcp.Context) error {
-		c.Send(tcp.NewEnvelope(c.Received().ConnID, tcp.NewPacket([]byte("unknown message"))))
+		c.Send(tcp.NewPacket([]byte("unknown message")))
 		return nil
 	})
 
-	echoChannel := make(chan *tcp.Envelope)
-	s.SetOnConnected(func(connectionID tcp.ConnectionID) (outSiteMessageBus <-chan *tcp.Envelope) {
+	echoChannel := make(chan tcp.Serializable)
+	s.SetOnConnected(func(connectionID tcp.ConnectionID) (outSiteMessageBus <-chan tcp.Serializable) {
 		fmt.Println("connected, connID=", connectionID)
 		return echoChannel
 	})

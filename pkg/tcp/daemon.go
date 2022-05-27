@@ -30,9 +30,9 @@ func NewDaemon(connection *Connection, splitter SplitterFunc, handler HandlerFun
 // 不会关闭任何外部传入的资源（如 net.Conn, inSiteMessageBuf, outSiteMessageBus 就不会关闭)
 func (d *Daemon) KeepWorking(ctx context.Context) error {
 	// 1. 创建两个channel
-	receivedMessageChannel := make(chan *Envelope)
+	receivedMessageChannel := make(chan Serializable)
 	defer close(receivedMessageChannel)
-	sendingMessageChannel := make(chan *Envelope)
+	sendingMessageChannel := make(chan Serializable)
 	defer close(sendingMessageChannel)
 	forwardingMessageChannel := d.onConnected(d.connection.connectionID)
 	defer d.onDisconnected(d.connection.connectionID)
@@ -43,7 +43,7 @@ func (d *Daemon) KeepWorking(ctx context.Context) error {
 	eg.Go(func() error { return NewSender(d.connection, sendingMessageChannel).KeepWorking(ctx) })
 	eg.Go(func() error { return NewForwarder(forwardingMessageChannel, sendingMessageChannel).KeepWorking(ctx) })
 	eg.Go(func() error {
-		return NewProcessor(receivedMessageChannel, sendingMessageChannel, d.handler).KeepWorking(ctx)
+		return NewProcessor(d.connection.connectionID, receivedMessageChannel, sendingMessageChannel, d.handler).KeepWorking(ctx)
 	})
 	<-ctx.Done()
 	cancel()

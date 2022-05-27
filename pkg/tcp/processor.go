@@ -7,17 +7,20 @@ import (
 
 // Processor 是一个由中间件堆砌起来的消息处理栈。
 type Processor struct {
-	receivedMessageChannel <-chan *Envelope
-	sendingMessageChannel  chan<- *Envelope
+	connID                 ConnectionID
+	receivedMessageChannel <-chan Serializable
+	sendingMessageChannel  chan<- Serializable
 	handler                HandlerFunc
 }
 
 func NewProcessor(
-	receivedMessageChannel <-chan *Envelope,
-	sendingMessageChannel chan<- *Envelope,
+	connID ConnectionID,
+	receivedMessageChannel <-chan Serializable,
+	sendingMessageChannel chan<- Serializable,
 	handler HandlerFunc,
 ) *Processor {
 	return &Processor{
+		connID:                 connID,
 		receivedMessageChannel: receivedMessageChannel,
 		sendingMessageChannel:  sendingMessageChannel,
 		handler:                handler,
@@ -34,6 +37,7 @@ func (p *Processor) KeepWorking(ctx context.Context) error {
 				return errors.New("channel is closed")
 			}
 			c := &handleContext{
+				connID:                p.connID,
 				received:              m,
 				sendingMessageChannel: p.sendingMessageChannel,
 			}

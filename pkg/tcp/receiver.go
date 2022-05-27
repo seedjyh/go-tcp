@@ -13,10 +13,10 @@ import (
 type Receiver struct {
 	connection             *Connection
 	splitter               SplitterFunc
-	receivedMessageChannel chan<- *Envelope
+	receivedMessageChannel chan<- Serializable
 }
 
-func NewReceiver(connection *Connection, splitter SplitterFunc, receivedMessageChannel chan<- *Envelope) *Receiver {
+func NewReceiver(connection *Connection, splitter SplitterFunc, receivedMessageChannel chan<- Serializable) *Receiver {
 	return &Receiver{
 		connection:             connection,
 		splitter:               splitter,
@@ -43,10 +43,7 @@ func (r *Receiver) KeepWorking(ctx context.Context) error {
 					return err
 				}
 			} else {
-				r.receivedMessageChannel <- &Envelope{
-					ConnID: r.connection.connectionID,
-					Data:   message,
-				}
+				r.receivedMessageChannel <- message
 				if n, err := buf.Read(make([]byte, messageByteLength)); err != nil {
 					return err
 				} else if n != messageByteLength {
