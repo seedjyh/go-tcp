@@ -13,10 +13,10 @@ import (
 type Receiver struct {
 	connection             *Connection
 	splitter               SplitterFunc
-	receivedMessageChannel chan<- Serializable
+	receivedMessageChannel chan<- ReceivedMessage
 }
 
-func NewReceiver(connection *Connection, splitter SplitterFunc, receivedMessageChannel chan<- Serializable) *Receiver {
+func NewReceiver(connection *Connection, splitter SplitterFunc, receivedMessageChannel chan<- ReceivedMessage) *Receiver {
 	return &Receiver{
 		connection:             connection,
 		splitter:               splitter,

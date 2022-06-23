@@ -8,15 +8,15 @@ import (
 // Processor 是一个由中间件堆砌起来的消息处理栈。
 type Processor struct {
 	connID                 ConnectionID
-	receivedMessageChannel <-chan Serializable
-	sendingMessageChannel  chan<- Serializable
+	receivedMessageChannel <-chan ReceivedMessage
+	sendingMessageChannel  chan<- SendingMessage
 	handler                HandlerFunc
 }
 
 func NewProcessor(
 	connID ConnectionID,
-	receivedMessageChannel <-chan Serializable,
-	sendingMessageChannel chan<- Serializable,
+	receivedMessageChannel <-chan ReceivedMessage,
+	sendingMessageChannel chan<- SendingMessage,
 	handler HandlerFunc,
 ) *Processor {
 	return &Processor{

@@ -36,7 +36,7 @@ type (
 		connectionIDGenerator Generator   // 连接ID的生成器
 	}
 
-	IdentifierFunc func(m Serializable) bool
+	IdentifierFunc func(m ReceivedMessage) bool
 
 	// HandlerFunc 是 Packet 处理函数的标准格式。
 	HandlerFunc func(c Context) error
@@ -50,7 +50,7 @@ type (
 	MiddlewareFunc func(next HandlerFunc) HandlerFunc
 
 	// OnConnectedFunc 是新连接建立时的回调函数。要发送的消息写入 outSiteMessageBus。
-	OnConnectedFunc func(connectionID ConnectionID) (outSiteMessageBus <-chan Serializable)
+	OnConnectedFunc func(connectionID ConnectionID) (outSiteMessageBus <-chan SendingMessage)
 
 	// OnDisconnectedFunc 是连接中断时的回调函数。在该函数返回后，各种资源将会被清除。
 	OnDisconnectedFunc func(connectionID ConnectionID)
@@ -75,7 +75,7 @@ func NewServer() *Server {
 }
 
 // DefaultOnConnected 没有出站消息。
-func DefaultOnConnected(connectionID ConnectionID) (outSiteMessageBus <-chan Serializable) {
+func DefaultOnConnected(connectionID ConnectionID) (outSiteMessageBus <-chan SendingMessage) {
 	return nil
 }
 

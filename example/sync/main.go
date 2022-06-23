@@ -11,7 +11,7 @@ import (
 )
 
 // 每5个字节一个包
-func mySplitter(buf []byte) (tcp.Serializable, int, error) {
+func mySplitter(buf []byte) (*tcp.Packet, int, error) {
 	if len(buf) < 5 {
 		return nil, 0, tcp.NoEnoughData
 	}
@@ -40,7 +40,7 @@ func (m *MyMessage) Bytes() []byte {
 	return []byte(m.word)
 }
 
-func isAllAlpha(m tcp.Serializable) bool {
+func isAllAlpha(m tcp.ReceivedMessage) bool {
 	mm := m.(*MyMessage)
 	for _, c := range mm.word {
 		if 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' {
@@ -52,7 +52,7 @@ func isAllAlpha(m tcp.Serializable) bool {
 	return true
 }
 
-func isAllDigit(m tcp.Serializable) bool {
+func isAllDigit(m tcp.ReceivedMessage) bool {
 	mm := m.(*MyMessage)
 	for _, c := range mm.word {
 		if '0' <= c && c <= '9' {
@@ -161,8 +161,8 @@ func main() {
 		return nil
 	})
 
-	echoChannel := make(chan tcp.Serializable)
-	s.SetOnConnected(func(connectionID tcp.ConnectionID) (outSiteMessageBus <-chan tcp.Serializable) {
+	echoChannel := make(chan tcp.SendingMessage)
+	s.SetOnConnected(func(connectionID tcp.ConnectionID) (outSiteMessageBus <-chan tcp.SendingMessage) {
 		fmt.Println("connected, connID=", connectionID)
 		return echoChannel
 	})

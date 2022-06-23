@@ -12,10 +12,10 @@ import (
 // 不负责关闭 channel
 type Sender struct {
 	connection            *Connection
-	sendingMessageChannel <-chan Serializable
+	sendingMessageChannel <-chan SendingMessage
 }
 
-func NewSender(connection *Connection, sendingMessageChannel <-chan Serializable) *Sender {
+func NewSender(connection *Connection, sendingMessageChannel <-chan SendingMessage) *Sender {
 	return &Sender{
 		connection:            connection,
 		sendingMessageChannel: sendingMessageChannel,

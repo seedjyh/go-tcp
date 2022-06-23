@@ -12,7 +12,7 @@ import (
 )
 
 // 遇到换行符就截断
-func mySplitter(buf []byte) (tcp.Serializable, int, error) {
+func mySplitter(buf []byte) (*tcp.Packet, int, error) {
 	for i, c := range buf {
 		if c == '\n' {
 			return tcp.NewPacket(buf[:i+1]), i + 1, nil
@@ -23,10 +23,10 @@ func mySplitter(buf []byte) (tcp.Serializable, int, error) {
 
 type Envelope struct {
 	connID tcp.ConnectionID
-	data   tcp.Serializable
+	data   tcp.ReceivedMessage
 }
 
-func NewEnvelope(connID tcp.ConnectionID, data tcp.Serializable) *Envelope {
+func NewEnvelope(connID tcp.ConnectionID, data tcp.ReceivedMessage) *Envelope {
 	return &Envelope{
 		connID: connID,
 		data:   data,
@@ -39,8 +39,8 @@ func main() {
 
 	// 指定端口
 	port := 11223
-	inSiteChannel := make(chan *Envelope)                                 // 收到的消息
-	outSiteChannelMap := make(map[tcp.ConnectionID]chan tcp.Serializable) // 要发送的消息
+	inSiteChannel := make(chan *Envelope)                                   // 收到的消息
+	outSiteChannelMap := make(map[tcp.ConnectionID]chan tcp.SendingMessage) // 要发送的消息
 	outSiteChannelMapMutex := sync.RWMutex{}
 
 	s := tcp.NewServer()
@@ -48,13 +48,13 @@ func main() {
 	// 设置分包规则：每5个字节一个包。
 	s.SetSplitter(mySplitter)
 
-	s.SetOnConnected(func(connectionID tcp.ConnectionID) (outSiteMessageBus <-chan tcp.Serializable) {
+	s.SetOnConnected(func(connectionID tcp.ConnectionID) (outSiteMessageBus <-chan tcp.SendingMessage) {
 		outSiteChannelMapMutex.Lock()
 		defer outSiteChannelMapMutex.Unlock()
 		if ch, ok := outSiteChannelMap[connectionID]; ok {
 			return ch
 		} else {
-			ch := make(chan tcp.Serializable)
+			ch := make(chan tcp.SendingMessage)
 			outSiteChannelMap[connectionID] = ch
 			return ch
 		}
@@ -79,7 +79,7 @@ func main() {
 		time.AfterFunc(time.Second, func() {
 			//outSiteChannelMapMutex.RLocker()
 			//defer outSiteChannelMapMutex.RUnlock()
-			outSiteChannelMap[m.connID] <- tcp.NewPacket([]byte("got:" + string(m.data.Bytes())))
+			outSiteChannelMap[m.connID] <- tcp.NewPacket([]byte(fmt.Sprintf("got: %+v", m.data)))
 		})
 	}
 
